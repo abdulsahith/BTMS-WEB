@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battery Thermal Simulation</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+        }
+        .logo{
+            width:80px;
+            height:80px;
+            border-radius: 50%;
+
+        }
+        .controls {
+            width: 300px;
+            padding: 20px;
+            background: aliceblue;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        .box{
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            width: 100%;
+            height: 100px;
+            flex-direction: row;
+            gap:10px;
+            border-bottom: 1px solid lightgrey;
+            
+        }
+        .logo-name{
+            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+            font-weight: bolder;
+            font-size: 2rem;
+            opacity: .8;
+            color:#4C7B8B;
+        }
+        .controls::-webkit-scrollbar{
+            width: 6px; 
+        }
+        .controls::-webkit-scrollbar-track{
+            background-color: aliceblue;
+        }
+        .controls::-webkit-scrollbar-thumb{
+            background:linear-gradient(to top ,#A5BFCC,#D9EAFD);
+            border-radius: 20px;
+        }
+        .top-buttons {
+            position: absolute;
+            top: 20px;
+            right: 80px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+        .top-button {
+            background: #3B6790;
+            color:#f5f5f5;
+            border: none;
+             display: flex;
+             justify-content: center;
+             align-items: center;
+            width:40px;
+            height:40px;
+            border-radius: 30%;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .top-button:hover {
+            background: #23486A;
+        }
+        .viz-container {
+            flex: 1;
+            background:linear-gradient(to right,#A5BFCC,#D9EAFD);
+            position: relative;
+        }
+        .cell-input {
+            background:aliceblue;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+        .h2{
+            font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+            font-weight: bolder;
+            font-size: 3rem;
+            opacity: .5;
+            color:#7E99A3;
+            top: 20px;
+            margin-left: 20px;
+            z-index: 100;
+        }
+        input {
+            width: 70px;
+            padding: 5px;
+            margin: 5px;
+            border-radius: 10px;
+            border: 1px solid gray;
+            outline: none;
+            background: transparent;
+        }
+        button {
+            background: #3B6790;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 5px;
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+            font-weight: bolder;
+            font-size: 1.2rem;
+        }
+        button:hover {
+            background: #23486A;
+        }
+        .temp-table {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: aliceblue;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 80%;
+            max-width: 800px;
+        }
+        .temp-table::-webkit-scrollbar{
+            width: 6px; 
+        }
+        .temp-table::-webkit-scrollbar-track{
+            background-color: aliceblue;
+        }
+        .temp-table::-webkit-scrollbar-thumb{
+            background:linear-gradient(to top ,#A5BFCC,#D9EAFD);
+            border-radius: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f8f9fa;
+        }
+        td {
+            cursor: pointer;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .data-btn {
+            position: absolute;
+            background: #3B6790;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            width:40px;
+            height:40px;
+            border-radius: 30%;
+            font-size: 1rem;
+            color:#f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #legend {
+            position: absolute;
+            bottom: 20px;
+            right: 100px;
+            background:transparent;
+            padding: 10px;
+            width: 450px;
+            height:40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: row;
+            gap:10px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .legend-item span{
+            font-size: 15px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            opacity: .5;
+        }
+        .graph-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 2000;
+            width: 80%;
+            max-width: 800px;
+        }
+        .graph-container {
+            width: 100%;
+            height: 300px;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .close-btn:hover {
+            color: #333;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+        }
+        .view-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background:transparent;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+        .view-control-item {
+            margin: 10px 0;
+        }
+        .slider-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .slider-label {
+            width: 60px;
+            color:whitesmoke;
+        }
+        input[type="range"] {
+            flex: 1;
+            width: auto;
+        }
+        .slider-value {
+            width: 40px;
+            text-align: right;
+            color:whitesmoke;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 200;
+        }
+
+        .heat-arrow {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1000;
+    width: 40px;
+    height: 20px;
+    opacity: 0.8;
+}
+
+.heat-arrow-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 100;
+}
+
+@keyframes flowAnimation {
+    0% { transform: translateX(-5px); opacity: 0.4; }
+    50% { opacity: 0.8; }
+    100% { transform: translateX(5px); opacity: 0.4; }
+}
+
+.flowing {
+    animation: flowAnimation 1.5s infinite alternate ease-in-out;
+}
+        .heat-flow-controls {
+            position: absolute;
+            top: 20px;
+            right: 140px;
+            z-index: 100;
+        }
+        .heat-flow-toggle {
+            background: #4285f4;
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 30%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="box">
+            <img src="logo.jpeg" alt="logo" class="logo">
+              <h2 class="logo-name">PID_3350</h2>
+
+        </div>
+        <div>
+            <label style="font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;font-size: 1rem;font-weight: bolder;color:#23486A">Series Cells  :</label>
+            <input type="number" id="series" min="1" value="2" max="4" placeholder="Series cells">
+            <br>
+            <label style="font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;font-size: 1rem;font-weight: bolder;color:#23486A">Parallel Cells :</label>
+            <input type="number" id="parallel" min="1" value="2" max="4" placeholder="Parallel cells">
+        </div>
+        <button onclick="generatePack()">Generate Pack</button>
+        <div id="cell-inputs"></div>
+        <!-- <button onclick="startSimulation()">Start Simulation</button> -->
+    </div>
+
+    <div id="viz-container" class="viz-container">
+        <h2 class="h2">Battery Simulation</h2>
+        <div class="top-buttons">
+            <button id="reset-view-btn" class="top-button" onclick="resetView()"><i class="fa-solid fa-arrows-rotate"></i></button>
+            <button id="focus-cell-btn" class="top-button" onclick="toggleFocusMode()"><i class="fa-solid fa-arrows-to-eye"></i></button>
+            <button id="heat-flow-btn" class="top-button" onclick="startSimulation()">
+                <i class="fa-solid fa-fire"></i>
+            </button>
+        </div>
+        
+        <button class="data-btn" onclick="toggleTempTable()"><i class="fa-solid fa-battery-full"></i></button>
+        
+        <div id="heat-arrow-container" class="heat-arrow-container"></div>
+
+
+        <div id="legend">
+             
+            <div class="legend-item">
+                <div class="legend-color" style="background: #0000ff"></div>
+                <span>Minimum</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ffff"></div>
+                <span>Cool</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ff00"></div>
+                <span>Moderate</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffff00"></div>
+                <span>Warm</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000"></div>
+                <span>Maximum</span>
+            </div>
+        </div>
+        
+        <div id="view-controls" class="view-controls">
+             
+            <div class="view-control-item">
+                <div class="slider-container">
+                    <span class="slider-label">Explode:</span>
+                    <input type="range" id="explode-slider" style="color:#00ffff;" min="0" max="100" value="0">
+                    <span class="slider-value" id="explode-value">0%</span>
+                </div>
+            </div>
+            <div class="view-control-item">
+                <div class="slider-container">
+                    <span class="slider-label">Spacing:</span>
+                    <input type="range" id="spacing-slider" min="0" max="100" value="0">
+                    <span class="slider-value" id="spacing-value">0%</span>
+                </div>
+            </div>
+        </div>
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <div id="temp-table" class="temp-table">
+        <h2>Temperature Readings</h2>
+        <p>Click on any cell row to view detailed temperature distribution graph</p>
+        <table id="readings-table">
+            <thead>
+                <tr>
+                    <th>Cell</th>
+                    <th>Top (°C)</th>
+                    <th>Right (°C)</th>
+                    <th>Bottom (°C)</th>
+                    <th>Left (°C)</th>
+                </tr>
+            </thead>
+            <tbody id="readings-body"></tbody>
+        </table>
+        <button onclick="toggleTempTable()">Close</button>
+    </div>
+
+    <div id="graph-modal" class="graph-modal">
+        <div class="modal-header">
+            <h2 id="graph-title">Cell Temperature Distribution</h2>
+            <button class="close-btn" onclick="closeGraphModal()">&times;</button>
+        </div>
+        <div class="graph-container">
+            <canvas id="temp-graph"></canvas>
+        </div>
+    </div>
+
+    <div id="overlay" class="overlay"></div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        class BatteryCell {
+            constructor() {
+                this.temperature = 25;
+                this.readings = {
+                    top: 25,
+                    right: 25,
+                    bottom: 25,
+                    left: 25
+                };
+                this.originalPosition = new THREE.Vector3();
+                this.explodedPosition = new THREE.Vector3();
+            }
+        }
+
+        class BatteryVisualizer {
+            constructor(container) {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ 
+                    antialias: true,
+                    alpha: true
+                });
+                this.renderer.setSize(container.clientWidth, container.clientHeight);
+                this.renderer.setClearColor(0x000000, 0);
+                container.appendChild(this.renderer.domElement);
+                this.renderer.domElement.style.position = 'absolute';
+                this.renderer.domElement.style.top = '0';
+                this.renderer.domElement.style.left = '0';
+
+                this.camera.position.set(5, 5, 5);
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(5, 5, 5);
+                this.scene.add(ambientLight, directionalLight);
+
+                this.cells = [];
+                this.batteryMeshes = [];
+                
+                // Setup raycaster for cell selection
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                this.selectedCellIndex = -1;
+                this.focusMode = false;
+                
+                // Original cell positions for reset
+                this.originalPositions = [];
+                this.cellGridLayout = {
+                    series: 2,
+                    parallel: 2
+                };
+                
+                // Initial explode settings
+                this.explodeAmount = 0;
+                this.spacingFactor = 0;
+                
+                // Setup event listeners
+                this.setupExplodeControls();
+                this.setupMouseEvents(container);
+                
+                this.animate();
+                window.addEventListener('resize', () => this.onResize());
+
+                this.heatFlowEnabled = false;
+                this.heatArrowContainer = document.querySelector(".heat-arrow-container");
+            }
+
+            toggleHeatFlow() {
+    this.heatFlowEnabled = !this.heatFlowEnabled;
+    if (this.heatFlowEnabled) {
+        this.updateHeatFlowVisualization();
+    } else {
+        this.clearHeatFlowVisualization();
+    }
+    document.getElementById('heat-flow-btn').innerHTML =
+        this.heatFlowEnabled
+            ? '<i class="fa-solid fa-fire" style="color: #ff4444;"></i>'
+            : '<i class="fa-solid fa-fire"></i>';
+}
+
+
+// Update these methods in your BatteryVisualizer class
+
+updateHeatFlowVisualization() {
+    // Clear existing arrows
+    this.clearHeatFlowVisualization();
+    
+    if (!this.cells || this.cells.length === 0) return;
+    
+    const { series, parallel } = this.cellGridLayout;
+    
+    // Create arrows between all adjacent cells
+    for (let s = 0; s < series; s++) {
+        for (let p = 0; p < parallel; p++) {
+            const currentIndex = s * parallel + p;
+            
+            // Check right neighbor
+            if (p < parallel - 1) {
+                const rightIndex = currentIndex + 1;
+                this.createHeatArrow(currentIndex, rightIndex);
+            }
+            
+            // Check bottom neighbor
+            if (s < series - 1) {
+                const bottomIndex = currentIndex + parallel;
+                this.createHeatArrow(currentIndex, bottomIndex);
+            }
+        }
+    }
+}
+
+createHeatArrow(fromIndex, toIndex) {
+    const fromCell = this.cells[fromIndex];
+    const toCell = this.cells[toIndex];
+    
+    // Calculate average temperatures
+    const fromTemp = (fromCell.readings.top + fromCell.readings.bottom + 
+                     fromCell.readings.left + fromCell.readings.right) / 4;
+    const toTemp = (toCell.readings.top + toCell.readings.bottom + 
+                   toCell.readings.left + toCell.readings.right) / 4;
+    
+    // Only show arrows if there's a significant temperature difference
+    if (Math.abs(fromTemp - toTemp) < 0.5) return;
+
+    // Get world positions
+    const fromPos = this.batteryMeshes[fromIndex].position;
+    const toPos = this.batteryMeshes[toIndex].position;
+    
+    // Convert to screen coordinates
+    const fromWorld = fromPos.clone();
+    const toWorld = toPos.clone();
+    fromWorld.project(this.camera);
+    toWorld.project(this.camera);
+    
+    // Convert to pixel coordinates
+    const width = this.renderer.domElement.clientWidth;
+    const height = this.renderer.domElement.clientHeight;
+    
+    const from2D = {
+        x: (fromWorld.x + 1) * width / 2,
+        y: (-fromWorld.y + 1) * height / 2
+    };
+    
+    const to2D = {
+        x: (toWorld.x + 1) * width / 2,
+        y: (-toWorld.y + 1) * height / 2
+    };
+    
+    // Create arrow element
+    const arrow = document.createElement('div');
+    arrow.className = 'heat-arrow flowing';
+    
+    // Position arrow
+    const midX = (from2D.x + to2D.x) / 2;
+    const midY = (from2D.y + to2D.y) / 2;
+    
+    // Calculate rotation angle
+    const angle = Math.atan2(to2D.y - from2D.y, to2D.x - from2D.x) * 180 / Math.PI;
+    
+    // Determine arrow color based on temperature difference
+    const color = this.getHeatColor(Math.abs(fromTemp - toTemp));
+    
+    // Create SVG arrow
+    arrow.innerHTML = `
+        <svg viewBox="0 0 40 20" style="transform: rotate(${angle}deg)">
+            <path d="M5 10 L35 10 M30 5 L35 10 L30 15" 
+                  stroke="${color}" 
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  fill="none"/>
+        </svg>
+    `;
+    
+    // Position the arrow
+    arrow.style.left = `${midX - 20}px`;
+    arrow.style.top = `${midY - 10}px`;
+    
+    // Add to container
+    this.heatArrowContainer.appendChild(arrow);
+}
+
+getHeatColor(tempDiff) {
+    if (tempDiff < 2) return '#4285f4';      // Cool blue
+    if (tempDiff < 5) return '#fbbc05';      // Moderate yellow
+    if (tempDiff < 10) return '#ff7043';     // Warm orange
+    return '#ea4335';                        // Hot red
+}
+
+// Make sure this is added to the animate method
+animate() {
+    requestAnimationFrame(() => this.animate());
+    this.controls.update();
+    
+    if (this.heatFlowEnabled) {
+        this.updateHeatFlowVisualization();
+    }
+    
+    this.renderer.render(this.scene, this.camera);
+}
+
+clearHeatFlowVisualization() {
+    document.getElementById('heat-arrow-container').innerHTML = "";
+}
+
+            setupExplodeControls() {
+                const explodeSlider = document.getElementById('explode-slider');
+                const spacingSlider = document.getElementById('spacing-slider');
+                 
+                explodeSlider.addEventListener('input', (event) => {
+                    this.explodeAmount = parseInt(event.target.value) / 100;
+                    document.getElementById('explode-value').textContent = `${event.target.value}%`;
+                    this.updateExplodedView();
+                });
+                
+                spacingSlider.addEventListener('input', (event) => {
+                    this.spacingFactor = parseInt(event.target.value) / 100;
+                    document.getElementById('spacing-value').textContent = `${event.target.value}%`;
+                    this.updateExplodedView();
+                });
+            }
+            
+            setupMouseEvents(container) {
+                container.addEventListener('mousemove', (event) => {
+                    const rect = container.getBoundingClientRect();
+                    this.mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+                    this.mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+                    
+                    this.checkCellHover();
+                });
+                
+                container.addEventListener('click', () => {
+                    if (this.selectedCellIndex >= 0) {
+                        this.toggleCellSelection(this.selectedCellIndex);
+                    }
+                });
+            }
+            
+            checkCellHover() {
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                
+                // Filter meshes to get only cell bodies (first child of each battery group)
+                const cellBodies = this.batteryMeshes.map(group => group.children[0]);
+                const intersects = this.raycaster.intersectObjects(cellBodies);
+                
+                if (intersects.length > 0) {
+                    const hoveredObject = intersects[0].object;
+                    const cellIndex = cellBodies.indexOf(hoveredObject);
+                    
+                    if (cellIndex !== -1) {
+                        document.body.style.cursor = 'pointer';
+                        this.showTooltip(`Cell ${cellIndex + 1}`);
+                        this.selectedCellIndex = cellIndex;
+                    }
+                } else {
+                    document.body.style.cursor = 'default';
+                    this.hideTooltip();
+                    this.selectedCellIndex = -1;
+                }
+            }
+            
+            showTooltip(text) {
+                const tooltip = document.getElementById('tooltip');
+                tooltip.textContent = text;
+                tooltip.style.display = 'block';
+                
+                // Update position on next frame to prevent lag
+                requestAnimationFrame(() => {
+                    const mouseX = (this.mouse.x + 1) / 2 * this.renderer.domElement.clientWidth;
+                    const mouseY = (1 - (this.mouse.y + 1) / 2) * this.renderer.domElement.clientHeight;
+                    
+                    tooltip.style.left = `${mouseX + 10}px`;
+                    tooltip.style.top = `${mouseY + 10}px`;
+                });
+            }
+            
+            hideTooltip() {
+                document.getElementById('tooltip').style.display = 'none';
+            }
+            
+            toggleCellSelection(index) {
+                if (this.focusMode) {
+                    // In focus mode, highlight the selected cell and dim others
+                    this.batteryMeshes.forEach((mesh, i) => {
+                        const highlightIntensity = (i === index) ? 1.0 : 0.3;
+                        mesh.children.forEach(part => {
+                            if (part.material) {
+                                if (part.material.opacity === undefined) {
+                                    part.material.transparent = true;
+                                }
+                                part.material.opacity = highlightIntensity;
+                            }
+                        });
+                    });
+                    
+                    // Center view on selected cell
+                    const selectedCell = this.batteryMeshes[index];
+                    this.controls.target.copy(selectedCell.position);
+                    
+                    // Show cell graph
+                    showCellGraph(index);
+                } else {
+                    // Regular mode - just show the graph
+                    showCellGraph(index);
+                }
+            }
+
+            getTemperatureColor(t) {
+
+                const colors = [
+                    new THREE.Color(0x0000ff), // Blue
+                    new THREE.Color(0xff0000),  // Red
+                    new THREE.Color(0xff0000),  // Red
+                    new THREE.Color(0xff0000),  // Red
+                    new THREE.Color(0xff0000),  // Red
+                    new THREE.Color(0xffff00), // Yellow
+
+                ];
+                
+                const segment = Math.min(Math.floor(t * (colors.length - 1)), colors.length - 2);
+                const segmentT = (t * (colors.length - 1)) - segment;
+                
+                const color = new THREE.Color();
+                color.lerpColors(colors[segment], colors[segment + 1], segmentT);
+                return color;
+            }
+
+            createCell() {
+                const cellGeometry = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32, 16, true);
+                const cellMaterial = new THREE.MeshPhongMaterial({
+                    vertexColors: true,
+                    side: THREE.DoubleSide,
+                    shininess: 50
+                });
+
+                const colors = new Float32Array(cellGeometry.attributes.position.count * 3);
+                cellGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                const posTerminal = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.2, 0.2, 0.1, 32),
+                    new THREE.MeshPhongMaterial({ color: 0x444444 })
+                );
+                posTerminal.position.y = 0.8;
+
+                const negTerminal = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.4, 0.4, 0.1, 32),
+                    new THREE.MeshPhongMaterial({ color: 0x222222 })
+                );
+                negTerminal.position.y = -0.8;
+
+                const cell = new THREE.Group();
+                cell.add(new THREE.Mesh(cellGeometry, cellMaterial));
+                cell.add(posTerminal);
+                cell.add(negTerminal);
+
+                return cell;
+            }
+
+            createBatteryPack(series, parallel) {
+                this.batteryMeshes.forEach(mesh => this.scene.remove(mesh));
+                this.batteryMeshes = [];
+                this.cells = [];
+                this.originalPositions = [];
+                this.cellGridLayout = { series, parallel };
+
+                const spacing = 1.2;
+                const offsetX = ((parallel - 1) * spacing) / 2;
+                const offsetZ = ((series - 1) * spacing) / 2;
+
+                // Calculate center of the grid
+                const gridCenter = new THREE.Vector3(0, 0, 0);
+
+                for (let s = 0; s < series; s++) {
+                    for (let p = 0; p < parallel; p++) {
+                        const cell = this.createCell();
+                        
+                        // Calculate grid position
+                        const position = new THREE.Vector3(
+                            p * spacing - offsetX,
+                            0,
+                            s * spacing - offsetZ
+                        );
+                        
+                        cell.position.copy(position);
+                        this.scene.add(cell);
+                        this.batteryMeshes.push(cell);
+                        
+                        const batteryCell = new BatteryCell();
+                        batteryCell.originalPosition.copy(position);
+                        
+                        // Calculate exploded position (direction from center)
+                        const directionFromCenter = position.clone().sub(gridCenter).normalize();
+                        const maxExplodeDistance = Math.max(series, parallel) * spacing;
+                        const explodedPos = position.clone().add(
+                            directionFromCenter.multiplyScalar(maxExplodeDistance)
+                        );
+                        batteryCell.explodedPosition.copy(explodedPos);
+                        
+                        this.cells.push(batteryCell);
+                        this.originalPositions.push(position.clone());
+                    }
+                }
+
+                const maxDim = Math.max(series, parallel);
+                this.camera.position.set(maxDim * 2, maxDim * 2, maxDim * 2);
+                this.controls.target.set(0, 0, 0);
+                
+                // Reset explode controls
+                document.getElementById('explode-slider').value = 0;
+                document.getElementById('explode-value').textContent = '0%';
+                document.getElementById('spacing-slider').value = 0;
+                document.getElementById('spacing-value').textContent = '0%';
+                this.explodeAmount = 0;
+                this.spacingFactor = 0;
+                
+                // Reset focus mode
+                this.focusMode = false;
+                 
+                this.resetCellOpacity();
+            }
+            
+            updateExplodedView() {
+                if (!this.batteryMeshes.length) return;
+                
+                // Get grid dimensions
+                const { series, parallel } = this.cellGridLayout;
+                const spacing = 1.2 * (1 + this.spacingFactor * 2); // Increase spacing based on spacing factor
+                
+                // Recalculate grid positions with new spacing
+                const offsetX = ((parallel - 1) * spacing) / 2;
+                const offsetZ = ((series - 1) * spacing) / 2;
+                
+                // Calculate center of the grid
+                const gridCenter = new THREE.Vector3(0, 0, 0);
+                
+                let index = 0;
+                for (let s = 0; s < series; s++) {
+                    for (let p = 0; p < parallel; p++) {
+                        // Calculate new grid position with updated spacing
+                        const gridPosition = new THREE.Vector3(
+                            p * spacing - offsetX,
+                            0,
+                            s * spacing - offsetZ
+                        );
+                        
+                        // Calculate direction from center
+                        const directionFromCenter = gridPosition.clone().sub(gridCenter).normalize();
+                        
+                        // Calculate exploded position
+                        const maxExplodeDistance = Math.max(series, parallel) * spacing;
+                        const explodedPosition = gridPosition.clone().add(
+                            directionFromCenter.multiplyScalar(maxExplodeDistance * this.explodeAmount)
+                        );
+                        
+                        // Update position
+                        this.batteryMeshes[index].position.copy(explodedPosition);
+                        
+                        // Store the new positions
+                        this.cells[index].originalPosition.copy(gridPosition);
+                        this.cells[index].explodedPosition.copy(
+                            gridPosition.clone().add(directionFromCenter.multiplyScalar(maxExplodeDistance))
+                        );
+                        
+                        index++;
+                    }
+                }
+            }
+            
+            resetView() {
+                // Reset explode sliders
+                document.getElementById('explode-slider').value = 0;
+                document.getElementById('explode-value').textContent = '0%';
+                document.getElementById('spacing-slider').value = 0;
+                document.getElementById('spacing-value').textContent = '0%';
+                
+                this.explodeAmount = 0;
+                this.spacingFactor = 0;
+                
+                // Reset positions
+                this.batteryMeshes.forEach((mesh, index) => {
+                    mesh.position.copy(this.originalPositions[index]);
+                });
+                
+                // Reset focus mode
+                if (this.focusMode) {
+                    this.toggleFocusMode();
+                }
+                
+                // Reset camera
+                const maxDim = Math.max(this.cellGridLayout.series, this.cellGridLayout.parallel);
+                this.camera.position.set(maxDim * 2, maxDim * 2, maxDim * 2);
+                this.controls.target.set(0, 0, 0);
+                this.controls.update();
+            }
+            
+            resetCellOpacity() {
+                this.batteryMeshes.forEach(mesh => {
+                    mesh.children.forEach(part => {
+                        if (part.material && part.material.opacity !== undefined) {
+                            part.material.opacity = 1.0;
+                        }
+                    });
+                });
+            }
+
+            updateTemperatures(predictions) {
+                this.cells.forEach((cell, i) => {
+                    const cellMesh = this.batteryMeshes[i].children[0];
+                    const geometry = cellMesh.geometry;
+                    const colors = geometry.attributes.color;
+                    const positions = geometry.attributes.position;
+                    
+                    cell.readings = predictions[i];
+                    
+                    // Find min and max temperatures for this cell
+                    const temps = [
+                        predictions[i].top,
+                        predictions[i].right,
+                        predictions[i].bottom,
+                        predictions[i].left
+                    ];
+                    const minTemp = Math.min(...temps);
+                    const maxTemp = Math.max(...temps);
+                    const range = maxTemp - minTemp;
+                    
+                    for (let j = 0; j < positions.count; j++) {
+                        const y = positions.getY(j);
+                        
+                        // Get angle in radians
+                        const angle = Math.atan2(positions.getZ(j), positions.getX(j));
+                        
+                        let temp;
+                        if (y > 0.5) {
+                            // Top section
+                            temp = predictions[i].top;
+                        } else if (y < -0.5) {
+                            // Bottom section
+                            temp = predictions[i].bottom;
+                        } else {
+                            // Middle section - interpolate between left and right
+                            const rightFactor = (Math.cos(angle) + 1) / 2;
+                            temp = predictions[i].left * (1 - rightFactor) + predictions[i].right * rightFactor;
+                        }
+                        
+                        // Normalize temperature to 0-1 for color mapping
+                        const t = (temp - minTemp) / range;
+                        const color = this.getTemperatureColor(t);
+                        colors.setXYZ(j, color.r, color.g, color.b);
+                    }
+                    
+                    colors.needsUpdate = true;
+                });
+
+                this.updateTemperatureTable();
+            }
+
+            updateTemperatureTable() {
+                const tbody = document.getElementById('readings-body');
+                tbody.innerHTML = '';
+                
+                this.cells.forEach((cell, i) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>Cell ${i + 1}</td>
+                        <td>${cell.readings.top.toFixed(1)}</td>
+                        <td>${cell.readings.right.toFixed(1)}</td>
+                        <td>${cell.readings.bottom.toFixed(1)}</td>
+                        <td>${cell.readings.left.toFixed(1)}</td>
+                    `;
+                    row.addEventListener('click', () => showCellGraph(i));
+                    tbody.appendChild(row);
+                });
+            }
+
+            onResize() {
+                const container = this.renderer.domElement.parentElement;
+                this.camera.aspect = container.clientWidth / container.clientHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.visualizer = new BatteryVisualizer(document.getElementById('viz-container'));
+        window.showCellGraph = function(cellIndex) {
+            const cell = visualizer.cells[cellIndex];
+            const readings = cell.readings;
+            
+            // Set graph title
+            document.getElementById('graph-title').textContent = `Cell ${cellIndex + 1} Temperature Distribution`;
+            
+            // Show graph modal
+            document.getElementById('graph-modal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+            
+            // Create or update chart
+            createTemperatureChart(cellIndex, readings);
+        };
+        
+        window.toggleFocusMode = function() {
+            visualizer.focusMode = !visualizer.focusMode;
+            const btn = document.getElementById('focus-cell-btn');
+            
+            if (visualizer.focusMode) {
+                 btn.style.background="#71BBB2"
+                // Dim all cells slightly
+                visualizer.batteryMeshes.forEach(mesh => {
+                    mesh.children.forEach(part => {
+                        if (part.material) {
+                            part.material.transparent = true;
+                            part.material.opacity = 0.3;
+                        }
+                    });
+                });
+            } else {
+                btn.style.background="#3B6790"
+                // Reset all cell opacities
+                 
+                visualizer.resetCellOpacity();
+            }
+        };
+        
+        window.resetView = function() {
+            visualizer.resetView();
+        };
+        window.toggleHeatFlow = function() {
+            visualizer.toggleHeatFlow();
+        };
+        
+        generatePack();
+    </script>
+
+    <script>
+        let tempChart = null;
+        
+        function generatePack() {
+            const series = parseInt(document.getElementById('series').value);
+            const parallel = parseInt(document.getElementById('parallel').value);
+            
+            const container = document.getElementById('cell-inputs');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < series * parallel; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell-input';
+                cell.innerHTML = `
+                    <h3 style="font-weight:bolder;font-size:1.5rem;color:#4C7B8B";font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;>Cell ${i + 1}</h3>
+                    <div>
+                        <label style="font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;font-size: 1rem;font-weight: bolder;color:#23486A">Voltage (V):</label>
+                        <input type="number" id="volt-${i}" value="3.7" step="0.1" min="0" max="4.2">
+                    </div>
+                    <div>
+                        <label style="font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;font-size: 1rem;font-weight: bolder;color:#23486A">Current (A):</label>
+                        <input type="number" id="curr-${i}" value="2.0" step="0.1" min="0" max="10">
+                    </div>
+                    <div>
+                        <label style="font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;font-size: 1rem;font-weight: bolder;color:#23486A">T_ambient:</label>
+                        <input type="number" id="amb-${i}" value="27" step="1" min="0" max="40">
+                    </div>
+                `;
+                container.appendChild(cell);
+            }
+            
+            visualizer.createBatteryPack(series, parallel);
+        }
+
+        window.startSimulation = async function() {
+            const series = parseInt(document.getElementById('series').value);
+            const parallel = parseInt(document.getElementById('parallel').value);
+            const voltages = [];
+            const currents = [];
+            const amb_temp=[];
+            const domain="https://bcf2-2401-4900-915e-61a5-4d63-e68-1bb5-eee2.ngrok-free.app"
+            
+            for (let i = 0; i < series * parallel; i++) {
+                voltages.push(parseFloat(document.getElementById(`volt-${i}`).value));
+                currents.push(parseFloat(document.getElementById(`curr-${i}`).value));
+                amb_temp.push(parseFloat(document.getElementById(`amb-${i}`).value));
+            }
+
+            try {
+                const response = await fetch(`${domain}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ voltages, currents,amb_temp})
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                visualizer.updateTemperatures(data.predictions);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to get predictions. Check if the API server is running.');
+                
+                // Fallback to simulate temperatures if API fails
+                const simulated = voltages.map((volt, i) => {
+                    const power = volt * currents[i];
+                    const baseTemp = 25 + power * 5;
+                    return {
+                        top: baseTemp + 3,      // Slightly hotter at top
+                        right: baseTemp + 1,    // Moderate at sides
+                        bottom: baseTemp - 2,    // Coolest at bottom
+                        left: baseTemp + 1      // Moderate at sides
+                    };
+                });
+                visualizer.updateTemperatures(simulated);
+            }
+        }
+
+        function toggleTempTable() {
+            const table = document.getElementById('temp-table');
+            table.style.display = table.style.display === 'none' ? 'block' : 'none';
+            
+            // Hide graph modal if table is closed
+            if (table.style.display === 'none') {
+                closeGraphModal();
+            }
+        }
+        
+        function closeGraphModal() {
+            document.getElementById('graph-modal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            
+            // Destroy existing chart to prevent memory leaks
+            if (tempChart) {
+                tempChart.destroy();
+                tempChart = null;
+            }
+        }
+
+        function createTemperatureChart(cellIndex, readings) {
+            const ctx = document.getElementById('temp-graph').getContext('2d');
+            
+            // Destroy previous chart if it exists
+            if (tempChart) {
+                tempChart.destroy();
+            }
+            
+            // Calculate average temperature
+            const avgTemp = (readings.top + readings.right + readings.bottom + readings.left) / 4;
+            
+            // Create chart
+            tempChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Top', 'Right', 'Bottom', 'Left', 'Average'],
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: [
+                            readings.top,
+                            readings.right,
+                            readings.bottom,
+                            readings.left,
+                            avgTemp
+                        ],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(153, 102, 255, 0.7)',
+                            'rgba(255, 159, 64, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgb(255, 99, 132)',
+                            'rgb(54, 162, 235)',
+                            'rgb(75, 192, 192)',
+                            'rgb(153, 102, 255)',
+                            'rgb(255, 159, 64)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Temperature (°C)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Cell ${cellIndex + 1} Temperature Distribution`,
+                            font: {
+                                size: 16
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const index = context.dataIndex;
+                                    if (index < 4) { // Only for the four sides, not the average
+                                        const positions = ['top', 'right', 'bottom', 'left'];
+                                        const voltage = document.getElementById(`volt-${cellIndex}`).value;
+                                        const current = document.getElementById(`curr-${cellIndex}`).value;
+                                        const power = (parseFloat(voltage) * parseFloat(current)).toFixed(2);
+                                        return `Power: ${power} W`;
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Close modals when clicking overlay
+        document.getElementById('overlay').addEventListener('click', function() {
+            closeGraphModal();
+        });
+    </script>
+</body>
+</html>
