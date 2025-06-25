@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Battery Thermal Simulation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background:linear-gradient(to right,#A5BFCC,#D9EAFD);
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            left: 80px ;
+            color: white;
+            opacity: 0.5;
+            font-size: 34px;
+            font-weight: bolder;
+             
+        }
+        .tooltip {
+            display: none;
+            position: absolute;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #graphContainer {
+            display: none;
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            width: 820px;
+            height: 320px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        #heatTransferContainer {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 400px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        canvas {
+            display: block;
+        }
+        #closeGraph {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #closeHeatTransfer {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #controls {
+            position: absolute;
+            top: 40px;
+            left: 20px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+        }
+        #globalControls {
+            position: absolute;
+             top: 30px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+       
+        button {
+            background: #3B6790;
+            color:#f5f5f5;
+            border: none;
+             display: flex;
+             justify-content: center;
+             align-items: center;
+            width:40px;
+            height:40px;
+            border-radius: 30%;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover {
+            background: #23486A;
+        }
+    </style>
+</head>
+<body>
+<a href="index.html" style="text-decoration: none;color:black; font-size: 1.3rem;top:20px;left:20px;position:absolute;"><i class="fa-solid fa-arrow-left"></i></a>
+    <div id="info">MODULE SIMULATION</div>
+    
+     
+    <div id="globalControls">
+        <button id="showHeatTransferBtn"><i class="fa-solid fa-fire-flame-curved"></i></button>
+        <button id="toggleAnimationBtn"><i class="fa-solid fa-play"></i></button>
+    </div>
+    <div id="tooltip" class="tooltip"></div>
+    <div id="graphContainer">
+        <div id="closeGraph">✕</div>
+        <canvas id="heatMapCanvas"></canvas>
+    </div>
+    <div id="heatTransferContainer">
+        <div id="closeHeatTransfer">✕</div>
+        <canvas id="heatTransferCanvas"></canvas>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // enable transparency
+       renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0);
+        document.body.appendChild(renderer.domElement);
+        
+        // Set up camera position
+        camera.position.set(0, 15, 25);
+        camera.lookAt(0, 0, 0);
+        
+        // Add lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight1.position.set(10, 20, 15);
+        scene.add(directionalLight1);
+        
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+        directionalLight2.position.set(-10, 10, -10);
+        scene.add(directionalLight2);
+        
+        // Global state
+        let animationEnabled = false;
+        let lastUpdateTime = 0;
+        const updateInterval = 1000; // Update data every 1 second
+        
+        // Materials - matched to the reference image
+        const redMaterial = new THREE.MeshPhongMaterial({ color: 0xcc2200 });
+        const yellowMaterial = new THREE.MeshPhongMaterial({ color: 0xeecc00 });
+        const blackMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
+        const blueMaterial = new THREE.MeshPhongMaterial({ color: 0x0044aa });
+        
+        // Heat levels and voltage data for visualization
+        const cellHeatLevels = {};
+        const cellVoltages = {};
+        const modulePositions = {};
+        
+        // Create a gradient colormap for heat visualization
+        function getHeatColor(value, min, max) {
+            // Normalize value between 0 and 1
+            const normalized = Math.max(0, Math.min(1, (value - 25) / (max - 3)));
+            
+            // Color stops for the gradient: blue -> green -> yellow -> red
+            
+            const stops = [
+                {pos: 0.0, color: [0, 0, 255]},    // Blue (coolest)
+                {pos: 0.3, color: [0, 255, 255]},   // Cyan
+                {pos: 0.5, color: [0, 255, 0]},     // Green
+                {pos: 0.7, color: [255, 255, 0]},   // Yellow
+                {pos: 1.0, color: [255, 0, 0]}      // Red (hottest)
+            ];
+            
+            // Find the two color stops to interpolate between
+            let i = 0;
+            while (i < stops.length - 1 && normalized > stops[i + 1].pos) {
+                i++;
+            }
+            
+            if (i === stops.length - 1) {
+                return rgbToHex(stops[i].color);
+            }
+            
+            // Calculate blend factor between the two stops
+            const t = (normalized - stops[i].pos) / (stops[i + 1].pos - stops[i].pos);
+            
+            // Interpolate colors
+            const r = Math.round(stops[i].color[0] * (1 - t) + stops[i + 1].color[0] * t);
+            const g = Math.round(stops[i].color[1] * (1 - t) + stops[i + 1].color[1] * t);
+            const b = Math.round(stops[i].color[2] * (1 - t) + stops[i + 1].color[2] * t);
+            
+            return rgbToHex([r, g, b]);
+        }
+        
+        // Convert RGB array to hex color
+        function rgbToHex(rgb) {
+            return ((1 << 24) + (rgb[0] << 16) + (rgb[1] << 8) + rgb[2]).toString(16).slice(1);
+        }
+        
+        // Create a single cell (cylinder with details)
+        function createCell(moduleNumber, cellIndex) {
+            const cellGroup = new THREE.Group();
+            
+            // Main red cylinder
+            const cylinderGeometry = new THREE.CylinderGeometry(0.4, 0.4, 2, 20);
+            const cylinder = new THREE.Mesh(cylinderGeometry, redMaterial.clone());
+            cylinder.position.y = 1;
+            cellGroup.add(cylinder);
+            
+            // Yellow ring near top (larger proportion as in reference)
+            const ringGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.5, 20);
+            const ring = new THREE.Mesh(ringGeometry, yellowMaterial);
+            ring.position.y = 1.9;
+            cellGroup.add(ring);
+            
+            // Black top
+            const topGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 20);
+            const top = new THREE.Mesh(topGeometry, blackMaterial);
+            top.position.y = 2.15;
+            cellGroup.add(top);
+            
+            // Blue base (more visible as in reference)
+            const baseGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.2, 20);
+            const base = new THREE.Mesh(baseGeometry, blueMaterial);
+            base.position.y = 0;
+            cellGroup.add(base);
+            
+            // Store reference to the cell's material for heat visualization
+            cellGroup.userData = {
+                moduleNumber: moduleNumber,
+                cellIndex: cellIndex,
+                cylinderMaterial: cylinder.material
+            };
+            
+            // Generate initial heat and voltage data for this cell
+            cellHeatLevels[`M${moduleNumber}C${cellIndex}`] = generateCellHeat(moduleNumber, cellIndex); 
+            cellVoltages[`M${moduleNumber}C${cellIndex}`] = generateCellVoltage(moduleNumber, cellIndex);
+            
+            return cellGroup;
+        }
+        
+        // Generate realistic cell heat values
+        function generateCellHeat(moduleNumber, cellIndex) {
+            // Base temperature between 20-45°C
+            let temp = 25 + Math.random() * 20;
+            
+            // Add patterns based on position:
+            // - Cells in the center tend to be hotter
+            // - Modules in the center tend to be hotter
+            
+            // Determine if cell is in center of module
+            const col = (cellIndex - 1) % 4;
+            const row = Math.floor((cellIndex - 1) / 4);
+            const distFromCenterCell = Math.sqrt(Math.pow((row - 1), 2) + Math.pow((col - 1.5), 2));
+            
+            // Cells in center are hotter
+            temp += Math.max(0, (2 - distFromCenterCell) * 5);
+            
+            // Module position effects (center modules hotter)
+            if (moduleNumber === 2 || moduleNumber === 3 || moduleNumber === 5) {
+                temp += 8;
+            }
+            
+            // Add variance to make it more realistic
+            temp += (Math.random() - 0.5) * 6;
+            
+            return temp;
+        }
+        
+        // Generate realistic cell voltage values
+        function generateCellVoltage(moduleNumber, cellIndex) {
+            // Base voltage between 3.2-4.2V
+            let voltage;
+            
+            // Create pattern similar to reference image
+            if (cellIndex === 4) {
+                voltage = 3.7 + Math.random() * 0.1; // Highest voltage like in sample
+            } else if ([1, 12].includes(cellIndex)) {
+                voltage = 3.4 + Math.random() * 0.2;
+            } else if ([3, 10].includes(cellIndex)) {
+                voltage = 3.2 + Math.random() * 0.1;
+            } else if (cellIndex % 2 === 0) {
+                voltage = 3.2 + Math.random() * 0.2;
+            } else {
+                voltage = 3.3 + Math.random() * 0.3;
+            }
+            
+            // Add variance based on module
+            if (moduleNumber === 2) {
+                voltage += 0.1; // Module 2 has slightly higher voltages
+            } else if (moduleNumber === 5) {
+                voltage -= 0.1; // Module 5 has slightly lower voltages
+            }
+            
+            return voltage;
+        }
+        
+        // Update cell heat and voltage with realistic changes
+        function updateCellData() {
+            for (let moduleNumber = 1; moduleNumber <= 6; moduleNumber++) {
+                for (let cellIndex = 1; cellIndex <= 12; cellIndex++) {
+                    const key = `M${moduleNumber}C${cellIndex}`;
+                    
+                    // Update heat levels with small changes
+                    const currentHeat = cellHeatLevels[key];
+                    let newHeat = currentHeat + (Math.random() - 0.5) * 3;
+                    
+                    // Apply constraints to keep values realistic
+                    // Heat tends to stabilize around the cell's "natural" temperature
+                    const baseHeat = generateCellHeat(moduleNumber, cellIndex);
+                    newHeat = newHeat * 0.8 + baseHeat * 0.2;
+                    newHeat = Math.max(20, Math.min(85, newHeat));
+                    
+                    cellHeatLevels[key] = newHeat;
+                    
+                    // Update voltages with small changes
+                    const currentVoltage = cellVoltages[key];
+                    let newVoltage = currentVoltage + (Math.random() - 0.5) * 0.05;
+                    
+                    // Apply voltage constraints
+                    newVoltage = Math.max(3.0, Math.min(4.2, newVoltage));
+                    
+                    cellVoltages[key] = newVoltage;
+                    
+                    // Update cell appearance based on heat
+                    updateCellAppearance(moduleNumber, cellIndex);
+                }
+            }
+        }
+        
+        // Update cell color based on temperature
+        function updateCellAppearance(moduleNumber, cellIndex) {
+            // Find the module and cell
+            const module = modules[moduleNumber - 1];
+            if (!module) return;
+            
+            // Find the cell in the module's children (cells are first 12 children)
+            let cell = null;
+            for (let i = 0; i < module.children.length; i++) {
+                const child = module.children[i];
+                if (child.userData && 
+                    child.userData.moduleNumber === moduleNumber && 
+                    child.userData.cellIndex === cellIndex) {
+                    cell = child;
+                    break;
+                }
+            }
+            
+            if (!cell) return;
+            
+            // Get heat level for this cell
+            const key = `M${moduleNumber}C${cellIndex}`;
+            const heat = cellHeatLevels[key];
+            
+            // Update material color based on heat level
+            const material = cell.userData.cylinderMaterial;
+            if (material) {
+                const heatColor = getHeatColor(heat, 25, 70);
+                material.color.set('#' + heatColor);
+            }
+        }
+        
+        // Create a module (12 cells in a 3x4 grid)
+        function createModule(moduleNumber) {
+            const moduleGroup = new THREE.Group();
+            
+            // Create 12 cells in a 3x4 grid
+            let cellIndex = 0;
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 4; col++) {
+                    cellIndex++;
+                    const cell = createCell(moduleNumber, cellIndex);
+                    cell.position.set(col * 1.0, 0, row * 1.0);
+                    moduleGroup.add(cell);
+                }
+            }
+            
+            // Add invisible hitbox for tooltip detection and interaction
+            const hitboxGeometry = new THREE.BoxGeometry(4, 3, 3);
+            const hitboxMaterial = new THREE.MeshBasicMaterial({ 
+                transparent: true, 
+                opacity: 0.0,
+                depthWrite: false
+            });
+            const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+            hitbox.position.set(1.5, 1.5, 1.0);
+            hitbox.userData = { moduleNumber: moduleNumber };
+            moduleGroup.add(hitbox);
+            
+            // Add module to intersectable objects
+            intersectObjects.push(hitbox);
+            
+            return moduleGroup;
+        }
+        
+        // Objects that can be intersected for tooltips and interaction
+        const intersectObjects = [];
+        
+        // Create and position 6 modules with appropriate spacing
+        const moduleSpacing = 6; // Spacing between modules
+        const modules = [];
+        
+        // Module arrangement:
+        // [M1] [M2] [M3]
+        // [M4] [M5] [M6]
+        
+        // Create top row modules
+        for (let i = 0; i < 3; i++) {
+            const moduleNumber = i + 1;
+            const module = createModule(moduleNumber);
+            const xPos = (i - 1) * moduleSpacing;
+            const zPos = -4;
+            
+            module.position.set(xPos, 0, zPos);
+            scene.add(module);
+            modules.push(module);
+            
+            // Store module position for heat transfer visualization
+            modulePositions[moduleNumber] = { x: xPos, z: zPos };
+        }
+        
+        // Create bottom row modules
+        for (let i = 0; i < 3; i++) {
+            const moduleNumber = i + 4;
+            const module = createModule(moduleNumber);
+            const xPos = (i - 1) * moduleSpacing;
+            const zPos = 2;
+            
+            module.position.set(xPos, 0, zPos);
+            scene.add(module);
+            modules.push(module);
+            
+            // Store module position for heat transfer visualization
+            modulePositions[moduleNumber] = { x: xPos, z: zPos };
+        }
+        
+        // Calculate average module temperature
+        function getModuleAverageTemp(moduleNumber) {
+            let total = 0;
+            for (let cellIndex = 1; cellIndex <= 12; cellIndex++) {
+                const key = `M${moduleNumber}C${cellIndex}`;
+                total += cellHeatLevels[key];
+            }
+            return total / 12;
+        }
+        
+        // Implement manual rotation with mouse drag
+        let isDragging = false;
+        let previousMousePosition = {
+            x: 0,
+            y: 0
+        };
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaMove = {
+                    x: e.offsetX - previousMousePosition.x,
+                    y: e.offsetY - previousMousePosition.y
+                };
+
+                // Rotate scene based on mouse movement
+                scene.rotation.y += deltaMove.x * 0.005;
+                scene.rotation.x += deltaMove.y * 0.005;
+            }
+
+            previousMousePosition = {
+                x: e.offsetX,
+                y: e.offsetY
+            };
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        renderer.domElement.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+        
+        // Raycaster for tooltip functionality and interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const tooltip = document.getElementById('tooltip');
+        
+        // Listen for mouse movement to show tooltips
+        document.addEventListener('mousemove', onMouseMove, false);
+        
+        function onMouseMove(event) {
+            // Calculate mouse position in normalized device coordinates
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Update tooltip position
+            tooltip.style.left = event.clientX + 10 + 'px';
+            tooltip.style.top = event.clientY + 10 + 'px';
+        }
+        
+        // Handle mouse click for module interaction
+        document.addEventListener('click', onMouseClick, false);
+        
+        function onMouseClick(event) {
+            // Calculate mouse position in normalized device coordinates
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Update the picking ray with the camera and mouse position
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Calculate objects intersecting the picking ray
+            const intersects = raycaster.intersectObjects(intersectObjects);
+            
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                const moduleNumber = object.userData.moduleNumber;
+                
+                // Show heat map for the selected module
+                showHeatMapGraph(moduleNumber);
+            }
+        }
+        
+        // Graph container and close button
+        const graphContainer = document.getElementById('graphContainer');
+        document.getElementById('closeGraph').addEventListener('click', () => {
+            graphContainer.style.display = 'none';
+        });
+        
+        // Heat transfer container and close button
+        const heatTransferContainer = document.getElementById('heatTransferContainer');
+        document.getElementById('closeHeatTransfer').addEventListener('click', () => {
+            heatTransferContainer.style.display = 'none';
+        });
+        
+        // Control buttons
+        document.getElementById('showHeatTransferBtn').addEventListener('click', () => {
+            showHeatTransferMap();
+        });
+        
+        document.getElementById('toggleAnimationBtn').addEventListener('click', () => {
+            animationEnabled = !animationEnabled;
+            document.getElementById('toggleAnimationBtn').innerHTML = 
+                animationEnabled ? `<i class="fa-solid fa-pause"></i>` : `<i class="fa-solid fa-play"></i>`;
+        });
+        
+        
+        // Enhanced Kriging algorithm implementation for 2D heat map
+        function kriging(points, values, gridSize, power) {
+            // Create interpolated grid using inverse distance weighting (IDW)
+            const grid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+            
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    // Convert grid coordinates to relative position [-1,1]
+                    const xi = (i / (gridSize - 1)) * 2 - 1;
+                    const yi = (j / (gridSize - 1)) * 2 - 1;
+                    
+                    // Inverse distance weighting
+                    let weightSum = 0;
+                    let valueSum = 0;
+                    
+                    for (let k = 0; k < points.length; k++) {
+                        const dist = Math.sqrt(Math.pow(xi - points[k].x, 2) + Math.pow(yi - points[k].y, 2));
+                        
+                        // Avoid division by zero and use semi-variogram model
+                        let weight;
+                        if (dist < 0.001) {
+                            weight = 1000; // Very high weight for exact points
+                        } else {
+                            // Power parameter controls smoothness (larger values = more local influence)
+                            weight = 1 / Math.pow(dist, power);
+                            
+                            // Add directional bias (simulating real heat transfer)
+                            // Heat tends to spread more in certain directions
+                            const directionFactor = 1 + 0.5 * Math.sin(Math.atan2(yi, xi) * 2);
+                            weight *= directionFactor;
+                        }
+                        
+                        weightSum += weight;
+                        valueSum += weight * values[k];
+                    }
+                    
+                    grid[i][j] = valueSum / weightSum;
+                }
+            }
+            
+            return grid;
+        }
+        
+        // Function to draw the voltage and heat graphs for a specific module
+        function showHeatMapGraph(moduleNumber) {
+            const canvas = document.getElementById('heatMapCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = 800;
+            canvas.height = 300;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Data for the selected module
+            const voltages = [];
+            const heatValues = [];
+            
+            // Get actual data for each cell
+            for (let cellIndex = 1; cellIndex <= 12; cellIndex++) {
+                const key = `M${moduleNumber}C${cellIndex}`;
+                voltages.push(cellVoltages[key]);
+                heatValues.push(cellHeatLevels[key]);
+            }
+            
+            // Calculate total heat
+            const totalHeat = heatValues.reduce((sum, val) => sum + val, 0) * 3; // Scale for visualization
+            
+            // Draw the voltage graph (left side)
+            drawBarGraph(
+                ctx, 
+                voltages, 
+                0, 0, 
+                400, 300, 
+                `Module ${moduleNumber} - Voltage per Cell`, 
+                'Cell Index', 
+                'Voltage (V)',
+                '#67c7eb',
+                3.0, 4.3
+            );
+            
+            // Draw the heat distribution and total heat graph (right side)
+            drawModuleHeatMap(
+                ctx,
+                heatValues,
+                totalHeat,
+                400, 0,
+                400, 300,
+                `Module ${moduleNumber} - Heat Distribution`,
+                'Cell Layout & Total Heat'
+            );
+            
+            // Show graph container
+            graphContainer.style.display = 'block';
+        }
+        
+        // Function to show global heat transfer map using kriging
+        function showHeatTransferMap() {
+            const canvas = document.getElementById('heatTransferCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = 380;
+            canvas.height = 180;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Prepare data for kriging
+            const points = [];
+            const values = [];
+            
+            // Get average temperature from each module
+            for (let moduleNumber = 1; moduleNumber <= 6; moduleNumber++) {
+                const pos = modulePositions[moduleNumber];
+                // Normalize positions to [-1, 1] range for kriging
+                const normalizedX = pos.x / (moduleSpacing * 1.5);
+                const normalizedZ = pos.z / 6;
+                
+                points.push({ x: normalizedX, y: normalizedZ });
+                values.push(getModuleAverageTemp(moduleNumber));
+            }
+            
+            // Add border points to improve interpolation
+            // These will have temperatures that gradually decrease from the average
+            const avgTemp = values.reduce((sum, val) => sum + val, 0) / values.length;
+            const borderTemp = avgTemp * 0.7; // Border is cooler
+            
+            // Add border points
+            const borderPoints = [
+                {x: -1.5, y: -1.2}, {x: 0, y: -1.2}, {x: 1.5, y: -1.2},  // Top row
+                {x: -1.5, y: 1.2}, {x: 0, y: 1.2}, {x: 1.5, y: 1.2},     // Bottom row
+                {x: -1.5, y: 0}, {x: 1.5, y: 0}                           // Middle sides
+            ];
+            
+            for (const bp of borderPoints) {
+                points.push(bp);
+                values.push(borderTemp);
+            }
+            
+            // Generate interpolated temperature grid
+            const gridSize = 50;
+            const temperatureGrid = kriging(points, values, gridSize, 2);
+            
+            // Draw the heat map
+            drawHeatTransferMap(ctx, temperatureGrid, points, 0, 0, canvas.width, canvas.height);
+            
+            // Show heat transfer container
+            heatTransferContainer.style.display = 'block';
+        }
+        
+        // Function to draw the heat transfer map
+        function drawHeatTransferMap(ctx, grid, points, x, y, width, height) {
+            // Find min/max temperature values
+            let minTemp = Infinity;
+            let maxTemp = -Infinity;
+            
+            for (let i = 0; i < grid.length; i++) {
+                for (let j = 0; j < grid[i].length; j++) {
+                    minTemp = Math.min(minTemp, grid[i][j]);
+                    maxTemp = Math.max(maxTemp, grid[i][j]);
+                }
+            }
+            
+            // Draw title
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Heat Transfer Map Between Modules', x + width / 2, y + 15);
+            
+            // Draw the grid
+            const gridWidth = width;
+            const gridHeight = height - 30;
+            const cellWidth = gridWidth / grid.length;
+            const cellHeight = gridHeight / grid[0].length;
+            
+            for (let i = 0; i < grid.length; i++) {
+                for (let j = 0; j < grid[i].length; j++) {
+                    const value = grid[i][j];
+                    const color = getHeatColor(value, minTemp, maxTemp);
+                    
+                    ctx.fillStyle = '#' + color;
+                    ctx.fillRect(
+                        x + i * cellWidth, 
+                        y + 30 + j * cellHeight, 
+                        cellWidth, 
+                        cellHeight
+                    );
+                }
+            }
+            
+            // Draw module positions
+            for (let i = 0; i < 6; i++) {
+                const moduleNumber = i + 1;
+                const pos = modulePositions[moduleNumber];
+                
+                // Convert to canvas coordinates
+                const cx = x + width / 2 + (pos.x / (moduleSpacing * 1.5)) * (width / 2);
+                const cy = y + 30 + height / 2 + (pos.z / 6) * (height / 2);
+                
+                // Draw module indicator
+                ctx.beginPath();
+                ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw module number
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(moduleNumber.toString(), cx, cy);
+            }
+            
+            // Draw legend
+            const legendWidth = 20;
+            const legendHeight = 150;
+            const legendX = x + width - 20;
+            const legendY = y + 15;
+            
+            // Draw gradient legend
+            const legendGradient = ctx.createLinearGradient(legendX, legendY, legendX, legendY + legendHeight);
+            const steps = 5;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const temp = minTemp + (maxTemp - minTemp) * (1 - t);
+                const color = getHeatColor(temp, minTemp, maxTemp);
+                legendGradient.addColorStop(t, '#' + color);
+            }
+            
+            ctx.fillStyle = legendGradient;
+            ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+            ctx.strokeStyle = '#000';
+            ctx.strokeRect(legendX, legendY, legendWidth, legendHeight);
+            
+            // Draw legend labels
+            ctx.textAlign = 'right';
+            ctx.font = '12px Arial';
+            ctx.fillStyle = '#000';
+            
+            for (let i = 0; i <= 4; i++) {
+                const t = i / 4;
+                const temp = minTemp + (maxTemp - minTemp) * (1 - t);
+                const labelY = legendY + t * legendHeight;
+                
+                ctx.fillText(temp.toFixed(1) + '°C', legendX - 5, labelY);
+                
+                // Draw tick
+                ctx.beginPath();
+                ctx.moveTo(legendX, labelY);
+                ctx.lineTo(legendX - 3, labelY);
+                ctx.stroke();
+            }
+        }
+        
+        // Function to draw the module heat map
+        function drawModuleHeatMap(ctx, heatValues, totalHeat, x, y, width, height, title) {
+            const margin = { top: 40, right: 70, bottom: 40, left: 40 };
+            const plotWidth = width - margin.left - margin.right;
+            const plotHeight = height - margin.top - margin.bottom;
+            
+            // Draw background
+            ctx.fillStyle = '#f8f8f8';
+            ctx.fillRect(x, y, width, height);
+            
+            // Draw title
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(title, x + width / 2, y + 20);
+            
+            // Draw cell heat map (12 cells in 3x4 grid)
+            const cellSize = Math.min(plotWidth / 4, plotHeight / 3) * 0.8;
+            const gridStartX = x + margin.left;
+            const gridStartY = y + margin.top;
+            
+            // Find min/max temperature to set color scale
+            const minTemp =25 //Math.min(...heatValues)-5 ; 
+            const maxTemp =35 //Math.max(...heatValues)+5; 
+            
+            // Draw each cell as a colored rectangle
+            for (let i = 0; i < 12; i++) {
+                const row = Math.floor(i / 4);
+                const col = i % 4;
+                
+                const cellX = gridStartX + col * (cellSize * 1.2);
+                const cellY = gridStartY + row * (cellSize * 1.2);
+                
+                // Get heat color
+                const heatColor = getHeatColor(heatValues[i], minTemp, maxTemp);
+                
+                // Draw cell
+                ctx.fillStyle = '#' + heatColor;
+                ctx.fillRect(cellX, cellY, cellSize, cellSize);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(cellX, cellY, cellSize, cellSize);
+                
+                // Draw cell index and temperature
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText((i + 1).toString(), cellX + cellSize / 2, cellY + cellSize / 2 - 5);
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '11px Arial';
+                ctx.fillText(heatValues[i].toFixed(1) + '°C', cellX + cellSize / 2, cellY + cellSize / 2 + 10);
+            }
+            
+            // Draw heat legend
+            const legendWidth = 20;
+            const legendHeight = plotHeight;
+            const legendX = x + width - margin.right + 20;
+            const legendY = y + margin.top;
+            
+            // Draw gradient legend
+            const legendGradient = ctx.createLinearGradient(legendX, legendY, legendX, legendY + legendHeight);
+            const steps = 5;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const temp = minTemp + (maxTemp - minTemp) * (1 - t);
+                const color = getHeatColor(temp, minTemp, maxTemp);
+                legendGradient.addColorStop(t, '#' + color);
+            }
+            
+            ctx.fillStyle = legendGradient;
+            ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+            ctx.strokeStyle = '#000';
+            ctx.strokeRect(legendX, legendY, legendWidth, legendHeight);
+            
+            // Draw legend labels
+            ctx.textAlign = 'right';
+            ctx.font = '12px Arial';
+            ctx.fillStyle = '#000';
+            
+            for (let i = 0; i <= 4; i++) {
+                const t = i / 4;
+                const temp = minTemp + (maxTemp - minTemp) * (1 - t);
+                const labelY = legendY + t * legendHeight;
+                
+                ctx.fillText(temp.toFixed(1) + '°C', legendX - 5, labelY);
+                
+                // Draw tick
+                ctx.beginPath();
+                ctx.moveTo(legendX, labelY);
+                ctx.lineTo(legendX - 3, labelY);
+                ctx.stroke();
+            }
+            
+            // Draw total heat value at bottom
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#000';
+            ctx.fillText(`Total Heat: ${totalHeat.toFixed(1)} J`, gridStartX + plotWidth / 2, y + height - 15);
+        }
+        
+        // Function to draw a bar graph
+        function drawBarGraph(ctx, data, x, y, width, height, title, xLabel, yLabel, color, yMin, yMax) {
+            const margin = { top: 40, right: 20, bottom: 40, left: 40 };
+            const plotWidth = width - margin.left - margin.right;
+            const plotHeight = height - margin.top - margin.bottom;
+            
+            // Draw background
+            ctx.fillStyle = '#f8f8f8';
+            ctx.fillRect(x, y, width, height);
+            
+            // Draw title
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(title, x + width / 2, y + 20);
+            
+            // Draw axes
+            ctx.beginPath();
+            ctx.moveTo(x + margin.left, y + height - margin.bottom);
+            ctx.lineTo(x + width - margin.right, y + height - margin.bottom); // x-axis
+            ctx.moveTo(x + margin.left, y + margin.top);
+            ctx.lineTo(x + margin.left, y + height - margin.bottom); // y-axis
+            ctx.strokeStyle = '#000';
+            ctx.stroke();
+            
+            // Draw y-axis label
+            ctx.save();
+            ctx.translate(x + 15, y + height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText(yLabel, 0, 0);
+            ctx.restore();
+            
+            // Draw x-axis label
+            ctx.textAlign = 'center';
+            ctx.fillText(xLabel, x + width / 2, y + height - 10);
+            
+            // Calculate bar width and spacing
+            const barCount = data.length;
+            const barWidth = plotWidth / barCount * 0.7;
+            const barSpacing = plotWidth / barCount * 0.3;
+            
+            // Draw y-axis ticks and labels
+            const yRange = yMax - yMin;
+            const yTickCount = 5;
+            ctx.textAlign = 'right';
+            ctx.font = '12px Arial';
+            
+            for (let i = 0; i <= yTickCount; i++) {
+                const value = yMin + (yRange * i / yTickCount);
+                const yPos = y + height - margin.bottom - (i / yTickCount) * plotHeight;
+                
+                // Draw tick
+                ctx.beginPath();
+                ctx.moveTo(x + margin.left - 5, yPos);
+                ctx.lineTo(x + margin.left, yPos);
+                ctx.stroke();
+                
+                // Draw label
+                ctx.fillText(value.toFixed(1), x + margin.left - 10, yPos + 4);
+            }
+            
+            // Draw x-axis ticks and labels
+            ctx.textAlign = 'center';
+            for (let i = 0; i < barCount; i++) {
+                const xPos = x + margin.left + (i + 0.5) * (barWidth + barSpacing);
+                
+                // Draw tick
+                ctx.beginPath();
+                ctx.moveTo(xPos, y + height - margin.bottom);
+                ctx.lineTo(xPos, y + height - margin.bottom + 5);
+                ctx.stroke();
+                
+                // Draw label
+                ctx.fillText(i + 1, xPos, y + height - margin.bottom + 20);
+            }
+            
+            // Draw bars
+            for (let i = 0; i < data.length; i++) {
+                const value = data[i];
+                const barHeight = ((value - yMin) / yRange) * plotHeight;
+                const xPos = x + margin.left + i * (barWidth + barSpacing) + barSpacing / 2;
+                const yPos = y + height - margin.bottom - barHeight;
+                
+                // Create gradient for bars
+                const barGradient = ctx.createLinearGradient(xPos, yPos, xPos, y + height - margin.bottom);
+                barGradient.addColorStop(0, color);
+                barGradient.addColorStop(1, shadeColor(color, -0.2));
+                
+                ctx.fillStyle = barGradient;
+                ctx.fillRect(xPos, yPos, barWidth, barHeight);
+                
+                // Add border to bar
+                ctx.strokeStyle = shadeColor(color, -0.3);
+                ctx.strokeRect(xPos, yPos, barWidth, barHeight);
+                
+                // Draw value on top of bar
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.font = '10px Arial';
+                if (barHeight > 15) {
+                    ctx.fillText(value.toFixed(2), xPos + barWidth / 2, yPos + 12);
+                } else {
+                    ctx.fillText(value.toFixed(2), xPos + barWidth / 2, yPos - 5);
+                }
+            }
+        }
+        
+        // Function to shade a color (lighten or darken)
+        function shadeColor(color, percent) {
+            // Convert color string to RGB
+            let R = parseInt(color.substring(1, 3), 16);
+            let G = parseInt(color.substring(3, 5), 16);
+            let B = parseInt(color.substring(5, 7), 16);
+            
+            // Apply shade
+            R = Math.max(0, Math.min(255, Math.round(R + (255 * percent))));
+            G = Math.max(0, Math.min(255, Math.round(G + (255 * percent))));
+            B = Math.max(0, Math.min(255, Math.round(B + (255 * percent))));
+            
+            // Convert back to hex
+            return "#" + ((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Animation loop
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+            
+            // Update data periodically if animation is enabled
+            if (animationEnabled && timestamp - lastUpdateTime > updateInterval) {
+                updateCellData();
+                lastUpdateTime = timestamp;
+            }
+            
+            // Update raycaster for tooltips
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(intersectObjects);
+            
+            if (intersects.length > 0 && !isDragging) {
+                const object = intersects[0].object;
+                const moduleNumber = object.userData.moduleNumber;
+                const avgTemp = getModuleAverageTemp(moduleNumber).toFixed(1);
+                
+                tooltip.innerHTML = `Module ${moduleNumber}<br>Avg Temp: ${avgTemp}°C<br>Click for details`;
+                tooltip.style.display = 'block';
+                document.body.style.cursor = 'pointer';
+            } else {
+                tooltip.style.display = 'none';
+                document.body.style.cursor = isDragging ? 'grabbing' : 'default';
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize and start animation
+        lastUpdateTime = performance.now();
+        animate();
+        
+        // Initially show heat transfer map after a short delay
+        setTimeout(() => {
+            showHeatTransferMap();
+        }, 1000);
+    </script>
+</body>
+</html>

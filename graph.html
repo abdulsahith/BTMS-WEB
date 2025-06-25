@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <title>Glycerol Coolant Heat Reduction Monitor</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background-image: linear-gradient(to bottom, #e6f2ff, #ffffff);
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+        }
+        
+        h1 {
+            color: #0056b3;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .system-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            background-color: #ebf5ff;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #0077cc;
+        }
+        
+        .monitor-container {
+            position: relative;
+            width: 100%;
+            height: 450px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            margin-top: 20px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #d0e1f9;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .monitor-overlay {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #d0e1f9;
+        }
+        
+        .stats-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-box {
+            flex: 1;
+            min-width: 180px;
+            background-color: #f8faff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid;
+            font-size: 15px;
+        }
+        
+        .flow-rate-display {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 15px;
+            gap: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+        }
+        
+        .axis-labels {
+            position: absolute;
+            color: #333;
+            font-size: 12px;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        .y-axis-label {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            text-align: center;
+        }
+        
+        .y2-axis-label {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+            text-align: center;
+        }
+        
+        .x-axis-label {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background-color: #4caf50;
+            box-shadow: 0 0 5px #4caf50;
+        }
+
+        .valve-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .valve-open {
+            background-color: #4caf50;
+            box-shadow: 0 0 5px #4caf50;
+        }
+
+        .valve-closed {
+            background-color: #f44336;
+            box-shadow: 0 0 5px #f44336;
+        }
+        
+        .heat-formula {
+            text-align: center;
+            background-color: #f0f8ff;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #d0e1f9;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .cycle-info {
+            text-align: center;
+            font-size: 16px;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #e6f2ff;
+            border-radius: 8px;
+            border: 1px solid #d0e1f9;
+        }
+    </style>
+</head>
+<body>
+     
+    <a href="index.html" style="text-decoration: none;color:black; font-size: 1.3rem;margin-top: -20px;margin-left: 10px;"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="container">
+ 
+        <h1>Glycerol Coolant Heat Reduction Monitor</h1>
+        
+        <div class="system-info">
+            <div><span class="status-indicator"></span> System Status: <strong>Online</strong></div>
+            <div>Monitoring: <strong>Heat Reduction by Glycerol Coolant</strong></div>
+        </div>
+        
+        <div class="heat-formula">
+            Q = (60 × 1000 × Flow (LPM) × 1113) J/hr
+        </div>
+        
+        <div class="cycle-info">
+            Currently cycling through valves: Valve <span id="active-valve">1</span> is active
+        </div>
+        
+        <div class="monitor-container">
+            <canvas id="grid-canvas"></canvas>
+            <canvas id="graph-canvas"></canvas>
+            <div class="monitor-overlay">
+                <div id="time-display">Time: 0s</div>
+            </div>
+            <div class="axis-labels">
+                <div class="y-axis-label">Flow Rate (LPM)</div>
+                <div class="y2-axis-label">Heat Reduction (MJ/hr)</div>
+                <div class="x-axis-label">Time (seconds)</div>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #4dabf7;"></div>
+                <span>1.0 LPM (66.8 MJ/hr)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #4caf50;"></div>
+                <span>1.5 LPM (100.2 MJ/hr)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #ff9800;"></div>
+                <span>2.0 LPM (133.6 MJ/hr)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #e91e63;"></div>
+                <span>2.5 LPM (167.0 MJ/hr)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #9c27b0;"></div>
+                <span>3.0 LPM (200.3 MJ/hr)</span>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-box" style="border-left-color: #4dabf7">
+                <div class="flow-rate-display">1.0 LPM</div>
+                <div>Valve Status: <span class="valve-indicator" id="valve-status-1"></span> <span id="valve-text-1">Closed</span></div>
+                <div>Heat Reduction: <span id="heat-1">66.8</span> MJ/hr</div>
+                <div>Temperature Drop: 12.4°C</div>
+            </div>
+            <div class="stat-box" style="border-left-color: #4caf50">
+                <div class="flow-rate-display">1.5 LPM</div>
+                <div>Valve Status: <span class="valve-indicator" id="valve-status-2"></span> <span id="valve-text-2">Closed</span></div>
+                <div>Heat Reduction: <span id="heat-2">100.2</span> MJ/hr</div>
+                <div>Temperature Drop: 16.8°C</div>
+            </div>
+            <div class="stat-box" style="border-left-color: #ff9800">
+                <div class="flow-rate-display">2.0 LPM</div>
+                <div>Valve Status: <span class="valve-indicator" id="valve-status-3"></span> <span id="valve-text-3">Open</span></div>
+                <div>Heat Reduction: <span id="heat-3">133.6</span> MJ/hr</div>
+                <div>Temperature Drop: 21.2°C</div>
+            </div>
+            <div class="stat-box" style="border-left-color: #e91e63">
+                <div class="flow-rate-display">2.5 LPM</div>
+                <div>Valve Status: <span class="valve-indicator" id="valve-status-4"></span> <span id="valve-text-4">Closed</span></div>
+                <div>Heat Reduction: <span id="heat-4">167.0</span> MJ/hr</div>
+                <div>Temperature Drop: 24.5°C</div>
+            </div>
+            <div class="stat-box" style="border-left-color: #9c27b0">
+                <div class="flow-rate-display">3.0 LPM</div>
+                <div>Valve Status: <span class="valve-indicator" id="valve-status-5"></span> <span id="valve-text-5">Closed</span></div>
+                <div>Heat Reduction: <span id="heat-5">200.3</span> MJ/hr</div>
+                <div>Temperature Drop: 27.8°C</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const timeDisplay = document.getElementById('time-display');
+        const heatDisplay1 = document.getElementById('heat-1');
+        const heatDisplay2 = document.getElementById('heat-2');
+        const heatDisplay3 = document.getElementById('heat-3');
+        const heatDisplay4 = document.getElementById('heat-4');
+        const heatDisplay5 = document.getElementById('heat-5');
+        const activeValveDisplay = document.getElementById('active-valve');
+        
+        // Valve status elements
+        const valveStatus1 = document.getElementById('valve-status-1');
+        const valveStatus2 = document.getElementById('valve-status-2');
+        const valveStatus3 = document.getElementById('valve-status-3');
+        const valveStatus4 = document.getElementById('valve-status-4');
+        const valveStatus5 = document.getElementById('valve-status-5');
+        
+        const valveText1 = document.getElementById('valve-text-1');
+        const valveText2 = document.getElementById('valve-text-2');
+        const valveText3 = document.getElementById('valve-text-3');
+        const valveText4 = document.getElementById('valve-text-4');
+        const valveText5 = document.getElementById('valve-text-5');
+        
+        // Canvas setup
+        const gridCanvas = document.getElementById('grid-canvas');
+        const graphCanvas = document.getElementById('graph-canvas');
+        const gridCtx = gridCanvas.getContext('2d');
+        const graphCtx = graphCanvas.getContext('2d');
+        
+        // Flow rates and colors
+        const flowRates = [1.0, 1.5, 2.0, 2.5, 3.0];
+        const flowColors = ['#4dabf7', '#4caf50', '#ff9800', '#e91e63', '#9c27b0'];
+        
+        // Valve states (open=true, closed=false)
+        const valveStates = [false, false, true, false, false];
+        
+        // Valve cycle settings
+        let currentActiveValve = 0; // Index 0-4, start with valve 1
+        const cycleDuration = 5; // seconds between valve changes
+        let lastValveCycleTime = 0;
+        
+        // Set canvas size
+        function resizeCanvas() {
+            const container = document.querySelector('.monitor-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            gridCanvas.width = width;
+            gridCanvas.height = height;
+            graphCanvas.width = width;
+            graphCanvas.height = height;
+            
+            // Redraw grid
+            drawGrid();
+        }
+        
+        // Draw grid lines
+        function drawGrid() {
+            const width = gridCanvas.width;
+            const height = gridCanvas.height;
+            
+            gridCtx.clearRect(0, 0, width, height);
+            gridCtx.strokeStyle = '#e0e0e0';
+            gridCtx.lineWidth = 1;
+            
+            // Vertical grid lines (time)
+            const verticalLines = 12;
+            const verticalSpacing = width / verticalLines;
+            
+            for (let i = 0; i <= verticalLines; i++) {
+                const x = i * verticalSpacing;
+                
+                gridCtx.beginPath();
+                gridCtx.moveTo(x, 0);
+                gridCtx.lineTo(x, height);
+                gridCtx.stroke();
+                
+                // Add time labels
+                if (i % 2 === 0) {
+                    gridCtx.fillStyle = '#666666';
+                    gridCtx.font = '10px Arial';
+                    gridCtx.fillText(`${i * 10}s`, x + 2, height - 5);
+                }
+            }
+            
+            // Horizontal grid lines (flow rate)
+            const horizontalLines = 10;
+            const horizontalSpacing = height / horizontalLines;
+            
+            for (let i = 0; i <= horizontalLines; i++) {
+                const y = i * horizontalSpacing;
+                
+                gridCtx.beginPath();
+                gridCtx.moveTo(0, y);
+                gridCtx.lineTo(width, y);
+                gridCtx.stroke();
+                
+                // Add flow rate labels on left y-axis
+                if (i % 2 === 0) {
+                    const flowValue = 5 - i * (5 / horizontalLines);
+                    gridCtx.fillStyle = '#666666';
+                    gridCtx.font = '10px Arial';
+                    gridCtx.fillText(flowValue.toFixed(1), 5, y - 5);
+                }
+                
+                // Add heat reduction labels on right y-axis
+                if (i % 2 === 0) {
+                    const flowValue = 5 - i * (5 / horizontalLines);
+                    const heatValue = calculateHeatReduction(flowValue);
+                    gridCtx.fillStyle = '#666666';
+                    gridCtx.font = '10px Arial';
+                    gridCtx.fillText(`${heatValue.toFixed(1)}`, width - 40, y - 5);
+                }
+            }
+        }
+        
+        // Calculate heat reduction using the formula
+        function calculateHeatReduction(flowRate) {
+            // Q = (60 × 1000 × Flow (LPM) × 1113) J/hr
+            // Converting to MJ/hr by dividing by 1,000,000
+            return (60 * 1000 * flowRate * 1113) / 1000000;
+        }
+        
+        // Update valve status indicators
+        function updateValveIndicators() {
+            // Update valve 1
+            if (valveStates[0]) {
+                valveStatus1.className = 'valve-indicator valve-open';
+                valveText1.textContent = 'Open';
+            } else {
+                valveStatus1.className = 'valve-indicator valve-closed';
+                valveText1.textContent = 'Closed';
+            }
+            
+            // Update valve 2
+            if (valveStates[1]) {
+                valveStatus2.className = 'valve-indicator valve-open';
+                valveText2.textContent = 'Open';
+            } else {
+                valveStatus2.className = 'valve-indicator valve-closed';
+                valveText2.textContent = 'Closed';
+            }
+            
+            // Update valve 3 (always open)
+            valveStatus3.className = 'valve-indicator valve-open';
+            valveText3.textContent = 'Open';
+            
+            // Update valve 4
+            if (valveStates[3]) {
+                valveStatus4.className = 'valve-indicator valve-open';
+                valveText4.textContent = 'Open';
+            } else {
+                valveStatus4.className = 'valve-indicator valve-closed';
+                valveText4.textContent = 'Closed';
+            }
+            
+            // Update valve 5
+            if (valveStates[4]) {
+                valveStatus5.className = 'valve-indicator valve-open';
+                valveText5.textContent = 'Open';
+            } else {
+                valveStatus5.className = 'valve-indicator valve-closed';
+                valveText5.textContent = 'Closed';
+            }
+            
+            // Update active valve display
+            activeValveDisplay.textContent = currentActiveValve + 1;
+        }
+        
+        // Graph data
+        let flowDataSets = [];
+        const maxDataPoints = 500;
+        let runningTime = 0;
+        let animationId = null;
+        
+        // Initialize data arrays
+        function initData() {
+            flowDataSets = [];
+            runningTime = 0;
+            lastValveCycleTime = 0;
+            currentActiveValve = 0; // Start with valve 1 (index 0)
+            
+            // Create data sets for each flow rate
+            for (let i = 0; i < flowRates.length; i++) {
+                const flowRate = flowRates[i];
+                const dataSet = [];
+                
+                // Fill with initial data
+                for (let j = 0; j < maxDataPoints; j++) {
+                    const time = j * 0.05;
+                    // Set initial flow to valve 1 (index 0) and valve 3 (index 2, always open)
+                    if (i === 0 || i === 2) {
+                        dataSet.push(generateFlowValue(time, flowRate, i));
+                    } else {
+                        dataSet.push(0); // Closed valves have zero flow
+                    }
+                }
+                
+                flowDataSets.push(dataSet);
+            }
+            
+            // Initialize valve states - valve 1 and valve 3 start open
+            valveStates[0] = true; // Valve 1 starts open
+            valveStates[1] = false;
+            valveStates[2] = true; // Valve 3 always open
+            valveStates[3] = false;
+            valveStates[4] = false;
+            
+            // Update displayed heat reduction values and valve indicators
+            updateHeatDisplays();
+            updateValveIndicators();
+        }
+        
+        // Generate realistic flow values
+        function generateFlowValue(time, baseValue, dataSetIndex) {
+            // Generate more realistic flow rate data with small variations
+            // Different frequencies for each data set to create visual separation
+            const frequency = 0.2 + (dataSetIndex * 0.1);
+            const amplitude = 0.05 + (dataSetIndex * 0.01);
+            
+            return baseValue + 
+                amplitude * Math.sin(time * frequency) + 
+                amplitude * 0.5 * Math.sin(time * frequency * 2.7) +
+                (Math.random() * 2 - 1) * 0.02; // Very small noise
+        }
+        
+        // Update the heat reduction displays
+        function updateHeatDisplays() {
+            for (let i = 0; i < flowRates.length; i++) {
+                const heatValue = calculateHeatReduction(flowRates[i]);
+                const heatDisplay = document.getElementById(`heat-${i+1}`);
+                heatDisplay.textContent = heatValue.toFixed(1);
+            }
+        }
+        
+        // Cycle through valves
+        function cycleValves() {
+            // Only cycle if the set duration has passed
+            if (runningTime - lastValveCycleTime >= cycleDuration) {
+                // Move to next valve in cycle (excluding valve 3 which is always open)
+                currentActiveValve = (currentActiveValve + 1) % 5;
+                
+                // Skip valve 3 in the cycling since it's always open
+                if (currentActiveValve === 2) {
+                    currentActiveValve = 3; // Skip to valve 4
+                }
+                
+                // Reset all valves (except valve 3)
+                valveStates[0] = false;
+                valveStates[1] = false;
+                // valveStates[2] = true; // Valve 3 always stays open
+                valveStates[3] = false;
+                valveStates[4] = false;
+                
+                // Set the current active valve to open
+                valveStates[currentActiveValve] = true;
+                
+                updateValveIndicators();
+                lastValveCycleTime = runningTime;
+            }
+        }
+        
+        // Update the graph data
+        function updateData() {
+            // Check and cycle valves if needed
+            cycleValves();
+            
+            // Update each data set
+            for (let i = 0; i < flowDataSets.length; i++) {
+                const dataSet = flowDataSets[i];
+                const flowRate = flowRates[i];
+                
+                // Add new data point based on valve state
+                if (valveStates[i]) {
+                    // Valve is open, generate flow
+                    dataSet.push(generateFlowValue(runningTime, flowRate, i));
+                } else {
+                    // Valve is closed, no flow
+                    dataSet.push(0);
+                }
+                
+                // Remove old data point
+                if (dataSet.length > maxDataPoints) {
+                    dataSet.shift();
+                }
+            }
+            
+            // Update time
+            runningTime += 0.1; // 100ms
+            timeDisplay.textContent = `Time: ${runningTime.toFixed(1)}s`;
+        }
+        
+        // Draw the graph
+        function drawGraph() {
+            const width = graphCanvas.width;
+            const height = graphCanvas.height;
+            
+            graphCtx.clearRect(0, 0, width, height);
+            
+            // Calculate scaling
+            const pointSpacing = width / maxDataPoints;
+            
+            // Fixed scaling for y-axis
+            const minValue = 0;
+            const maxValue = 5; // Maximum 5 LPM
+            const valueRange = maxValue - minValue;
+            
+            // Draw each data set
+            for (let i = 0; i < flowDataSets.length; i++) {
+                const dataSet = flowDataSets[i];
+                const color = flowColors[i];
+                
+                graphCtx.strokeStyle = color;
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                
+                for (let j = 0; j < dataSet.length; j++) {
+                    const x = j * pointSpacing;
+                    const normalizedY = (dataSet[j] - minValue) / valueRange;
+                    const y = height - (normalizedY * height);
+                    
+                    if (j === 0) {
+                        graphCtx.moveTo(x, y);
+                    } else {
+                        graphCtx.lineTo(x, y);
+                    }
+                }
+                
+                graphCtx.stroke();
+                
+                // Highlight the most recent data point
+                const lastPoint = dataSet[dataSet.length - 1];
+                const lastX = (dataSet.length - 1) * pointSpacing;
+                const lastNormalizedY = (lastPoint - minValue) / valueRange;
+                const lastY = height - (lastNormalizedY * height);
+                
+                graphCtx.fillStyle = color;
+                graphCtx.beginPath();
+                graphCtx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+                graphCtx.fill();
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            updateData();
+            drawGraph();
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            resizeCanvas();
+            initData();
+            animate(); // Start animation immediately
+        });
+
+        // Initial setup call
+        resizeCanvas();
+        initData();
+        animate();
+    </script>
+</body>
+</html>
